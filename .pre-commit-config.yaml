@@ -1,0 +1,37 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+    -   id: check-ast
+    -   id: trailing-whitespace
+    -   id: end-of-file-fixer
+    -   id: check-yaml
+    -   id: check-added-large-files
+    -   id: name-tests-test
+        args: ["--pytest-test-first"]
+
+  # Black
+  - repo: https://github.com/psf/black
+    rev: 23.10.1
+    hooks:
+    -   id: black
+        language_version: python
+        args: ["src/"]
+
+  # Ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.13
+    hooks:
+      - id: ruff-format
+        language_version: python
+        args: ["src/"]
+      - id: ruff
+        language_version: python
+        args: ["--fix", "src/"]
+
+  # Mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.4.1
+    hooks:
+      - id: mypy
+        language_version: python

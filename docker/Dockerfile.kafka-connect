@@ -1,0 +1,17 @@
+FROM confluentinc/cp-kafka-connect:7.6.0
+
+# Install additional connectors
+RUN confluent-hub install --no-prompt jcustenborder/kafka-connect-spooldir:2.0.60 \
+    && confluent-hub install --no-prompt confluentinc/kafka-connect-jdbc:10.0.2
+
+# Copy configs into the container
+COPY kafka-connect-configs/sink-postgres-jdbc-connector.json /etc/kafka-connect/configs/sink-postgres-jdbc-connector.json
+COPY kafka-connect-configs/source-spooldir-csv-connector.json /etc/kafka-connect/configs/source-spooldir-csv-connector.json
+COPY kafka-connect-entrypoint.sh /etc/kafka-connect/kafka-connect-entrypoint.sh
+
+# Give execute permissions to the script
+USER root
+RUN chmod +x /etc/kafka-connect/kafka-connect-entrypoint.sh
+
+# Kafka Connect entrypoint
+CMD ["/etc/kafka-connect/kafka-connect-entrypoint.sh"]
