@@ -6,20 +6,19 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from functools import cached_property
-from typing import Never
+from typing import Literal, Never, TypeVar
 
 import aiofiles
 import aiohttp
 from aiohttp import ClientSession, ClientTimeout
+
 from core.config import settings
-from core.enums.appsflyer import (
-    AdditionalFieldsEnum,
-    AppsflyerReportsAPIEnum,
-)
+from core.enums.appsflyer import AdditionalFieldsEnum, AppsflyerReportsAPIEnum
 from core.enums.system_signals import SystemSignalsEnum
 from core.exceptions import GracefulExit, TooManyRetries
 from core.logger import logger
-from core.types import Report
+
+Report = TypeVar("Report", dict, str)
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +53,7 @@ class AppsFlyerReference:
     """
 
     appsflyer_reports_api: tuple[str, ...] = AppsflyerReportsAPIEnum.values()
-    additional_fields: str = AdditionalFieldsEnum.MATCH_TYPE.value
+    additional_fields: str = AdditionalFieldsEnum.MATCH_TYPE
     appsflyer_token: str = settings.APPSFLYER_TOKEN
     appsflyer_api_url: str = settings.APPSFLYER_API_URL
     application_id_ios: str = settings.APPLICATION_ID_IOS
@@ -63,13 +62,13 @@ class AppsFlyerReference:
     date_stop: datetime = date_start - timedelta(days=1)
 
     @cached_property
-    def request_header(self) -> dict[str, str]:
+    def request_header(self) -> dict[Literal["accept", "authorization"], str]:
         return {
             "accept": "text/csv",
             "authorization": f"Bearer {self.appsflyer_token}",
         }
 
-    def create_reference_info(
+    def _create_reference_info(
         self, application_id: str, report_api: str
     ) -> AppsFlyerReferenceInfo:
         reference = (
@@ -78,36 +77,38 @@ class AppsFlyerReference:
             f"v5?from={self.date_start.strftime('%Y-%m-%d')}&to={self.date_stop.strftime('%Y-%m-%d')}&"
             f"additional_fields={self.additional_fields}"
         )
-        return AppsFlyerReferenceInfo(reference, application_id, report_api)
+        return AppsFlyerReferenceInfo(
+            reference=reference, application_id=application_id, report_api=report_api
+        )
 
-    def create_references_for_application(
+    def _create_references_for_application(
         self, application_id: str
     ) -> dict[str, Sequence[str]]:
         reference_for_application: dict[str, Sequence[str]] = {}
 
         for report_api in self.appsflyer_reports_api:
-            reference = self.create_reference_info(application_id, report_api)
+            reference_info = self._create_reference_info(application_id, report_api)
 
-            reference_for_application[reference.reference] = (
-                reference.application_id,
-                reference.report_api,
+            reference_for_application[reference_info.reference] = (
+                reference_info.application_id,
+                reference_info.report_api,
             )
 
         return reference_for_application
 
     @property
-    def get_references_for_ios(self) -> dict[str, Sequence[str]]:
-        return self.create_references_for_application(self.application_id_ios)
+    def _get_references_for_ios(self) -> dict[str, Sequence[str]]:
+        return self._create_references_for_application(self.application_id_ios)
 
     @property
-    def get_references_for_android(self) -> dict[str, Sequence[str]]:
-        return self.create_references_for_application(self.application_id_android)
+    def _get_references_for_android(self) -> dict[str, Sequence[str]]:
+        return self._create_references_for_application(self.application_id_android)
 
     @cached_property
     def get_all_references_for_all_applications(self) -> dict[str, Sequence[str]]:
         return {
-            **self.get_references_for_ios,
-            **self.get_references_for_android,
+            **self._get_references_for_ios,
+            **self._get_references_for_android,
         }
 
 
@@ -123,7 +124,7 @@ class ProcessAppsflyerReport:
         self.appsflyer_reports = appsflyer_reports
 
     @staticmethod
-    async def save_report(report_result: Report):
+    async def _save_report(report_result: Report):
         if content_disposition := report_result.headers.get("Content-Disposition"):
             filename = content_disposition.split("filename=")[-1].strip('"')
             filepath = os.path.join("./reports", "unprocessed", filename)
@@ -140,7 +141,7 @@ class ProcessAppsflyerReport:
     async def process_reports(self):
         for report in self.appsflyer_reports:
             if report.exception() is None:
-                await self.save_report(report.result())
+                await self._save_report(report.result())
             else:
                 report.cancel()
 
@@ -178,23 +179,24 @@ class PullAppsFlyerReport:
     async def create_tasks_for_request(self, session: ClientSession) -> Sequence[Task]:
         return [
             asyncio.create_task(
-                session.get(reference, headers=self.request_header), name=reference
+                session.get(reference, headers=self.request_header),  # type: ignore
+                name=reference,
             )
             for reference in self.appsflyer_all_references
         ]
 
-    async def create_tasks_for_retry_request(
+    async def _create_tasks_for_retry_request(
         self, session: ClientSession, tasks: Iterable[Task]
     ) -> Sequence[Task]:
         return [
             asyncio.create_task(
-                session.get(task.get_name(), headers=self.request_header),
+                session.get(task.get_name(), headers=self.request_header),  # type: ignore
                 name=task.get_name(),
             )
             for task in tasks
         ]
 
-    async def retry_pending_reports(
+    async def _retry_pending_reports(
         self,
         session: ClientSession,
         pending_reports: Iterable[Task],
@@ -204,7 +206,7 @@ class PullAppsFlyerReport:
         for attempt in range(retry_attempts):
             logger.info(f"Retrying pending reports, attempt {attempt + 1}")
 
-            retry_tasks = await self.create_tasks_for_retry_request(
+            retry_tasks = await self._create_tasks_for_retry_request(
                 session, tasks=pending_reports
             )
             done_retry_reports, pending_retry_reports = await asyncio.wait(
@@ -239,7 +241,7 @@ class PullAppsFlyerReport:
             await ProcessAppsflyerReport(done_reports).process_reports()
 
             if pending_reports:
-                await self.retry_pending_reports(session, pending_reports)
+                await self._retry_pending_reports(session, pending_reports)
 
 
 appsflyer = PullAppsFlyerReport()

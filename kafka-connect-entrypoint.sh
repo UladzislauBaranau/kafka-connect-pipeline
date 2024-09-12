@@ -37,14 +37,14 @@ apply_connector_config() {
 echo "Launching Kafka Connect worker and keep the container running"
 /etc/confluent/docker/run &
 
-# Apply first connector configuration
+# Apply sink connector configuration
 echo "Apply sink connector configuration"
 CONNECTOR_NAME="sink-postgres-jdbc-connector"
 CONFIG_FILE="/etc/kafka-connect/configs/sink-postgres-jdbc-connector.json"
 wait_for_connect
 apply_connector_config
 
-# Apply second connector configuration
+# Apply source connector configuration
 echo "Apply source connector configuration"
 CONNECTOR_NAME="source-spooldir-csv-connector"
 CONFIG_FILE="/etc/kafka-connect/configs/source-spooldir-csv-connector.json"

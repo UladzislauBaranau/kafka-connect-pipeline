@@ -1,6 +1,3 @@
-[tool.black]
-target-version = ["py312"]
-
 [tool.ruff]
 target-version = "py312"
 
@@ -16,16 +13,12 @@ select = [
 [tool.ruff.lint.pycodestyle]
 max-line-length = 120
 
-[tool.ruff.format]
-quote-style = "double"
-
 [tool.mypy]
 python_version = "3.12"
 disable_error_code = [
-    "no-redef",
-    "import",
-    "attr-defined",
-    "call-arg",
-    "arg-type",
+    "import", # check for an issue with imports
+    "attr-defined", # check that attribute exists
 ]
 check_untyped_defs = true
+explicit_package_bases = true
+files = ["src"]

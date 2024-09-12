@@ -1,19 +1,19 @@
 from functools import cache
 
-from core import settings
 from core.enums.enviroment import EnvironmentTypesEnum as EnvTypes
+from core.settings import DevelopmentSettings, LocalSettings, ProductionSettings
 
 environments = {
-    EnvTypes.LOCAL: settings.LocalSettings,
-    EnvTypes.DEV: settings.DevelopmentSettings,
-    EnvTypes.PROD: settings.ProductionSettings,
+    EnvTypes.LOCAL: LocalSettings,
+    EnvTypes.DEV: DevelopmentSettings,
+    EnvTypes.PROD: ProductionSettings,
 }
 
 
 @cache
-def get_settings() -> None:
+def get_settings() -> LocalSettings | DevelopmentSettings | ProductionSettings:
     app_env = settings.BaseAppSettings().ENVIRONMENT
-    return environments[app_env]()  # type:ignore
+    return environments[app_env]()
 
 
-settings = get_settings()  # type:ignore
+settings = get_settings()
